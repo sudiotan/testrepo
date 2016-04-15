@@ -25,7 +25,7 @@
     "imagePublisher": "MicrosoftWindowsServer",
     "imageOffer": "WindowsServer",
 	"windowsOSVersion" : "2012-R2-Datacenter",
-    "OSDiskName": "[concat(parameters('vmName'),'osdiskforwindowssimple')]",
+    "OSDiskName": "[concat(parameters('vmName'),'osdisk')]",
     "nicName": "[concat(parameters('vmName'),'VMNic')]",
     "addressPrefix": "10.0.0.0/16",
     "subnetName": "[concat(parameters('vmName'),'Subnet')]",
@@ -33,7 +33,7 @@
     "storageAccountType": "Standard_GRS",
     "publicIPAddressName": "[concat(parameters('vmName'),'PublicIP')]",
     "publicIPAddressType": "Dynamic",
-    "vmStorageAccountContainerName": "[concat(parameters('vmName'),'vhds')]",
+    "vmStorageAccountContainerName": "vhds",
     "vmSize": "Basic_A0",
     "virtualNetworkName": "[concat(parameters('vmName'),'VNET')]",
     "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
@@ -147,9 +147,9 @@
             "version": "latest"
           },
           "osDisk": {
-            "name": "[concat('osdisk',copyIndex())",
+            "name": "osdisk",
             "vhd": {
-              "uri": "[concat('http://',variables('storageAccountName'),copyIndex(),'.blob.core.windows.net/',variables('vmStorageAccountContainerName'),'/',variables('OSDiskName'),copyIndex(),'.vhd')]"
+              "uri": "[concat('http://',variables('storageAccountName'),'.blob.core.windows.net/',variables('vmStorageAccountContainerName'),'/',variables('OSDiskName'),copyIndex(),'.vhd')]"
             },
             "caching": "ReadWrite",
             "createOption": "FromImage"

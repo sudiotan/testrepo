@@ -105,8 +105,8 @@
         "count": "[parameters('numberOfInstances')]"
       },
       "dependsOn": [
-        "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
-        "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'), copyIndex())]"
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'), copyIndex())]",
       ],
       "properties": {
         "hardwareProfile": {

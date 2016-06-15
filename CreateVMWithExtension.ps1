@@ -1,5 +1,5 @@
 ﻿Remove-Variable * -ErrorAction SilentlyContinue
-
+$DebugPreference = "Continue"
 ###################################### Azure Login  ######################################
 
 $rglocation = "East US"
@@ -17,17 +17,17 @@ Select-AzureRmSubscription -SubscriptionId $accsubscription
 ###################################### Create Node  ######################################
 
 # Assign common values
-$vmnumber = "2"
+$vmnumber = 200
 $addnode = "Yes"
 $addextension = "Yes"
 $addplatform = "windows"
 
 # vm information
 $vmsize = "Basic_A0"
-$vmnamestart = "sudioarmdsa2"
+$vmnamestart = "sudioarmdsa"
 $deployName = 'sudiodp' + ([guid]::NewGuid().ToString()).substring(0,4)
 $templateURI = 'https://raw.githubusercontent.com/sudiotan/testrepo/master/azuredeploy_multi_VM_sudio.json'  # VM template in JSON
-$params = @{vmName=$vmnamestart;numberOfInstances=2}
+$params = @{vmName=$vmnamestart;numberOfInstances=$vmnumber}
 
 # tenant information
 $tenatid = "4DF6D6D1-3467-AA26-0DD8-1BAC774D4930"
@@ -60,6 +60,7 @@ $dsaExtVersion = "9.6"  # default extension version
 $dsaExtVersionImages = Get-AzureRmVMExtensionImage -Location $rglocation –PublisherName $TMPublisher -Type $TMextensionname
 echo($dsaExtVersionImages)
 $ver = $dsaExtVersion
+
 if($dsaExtVersionImages -is [Object[]]) {
     $ver = $dsaExtVersionImages[$dsaExtVersionImages.Length-1].Version
 }elseif($dsaExtVersionImages -is [Object]) {
@@ -85,8 +86,10 @@ echo ("{0} Finished deploying template:{1}" -f $(Get-Date ).ToString(), $templat
 ############################################### Create VM Extension ####################################################
 
 #region Add Extension
+$minThreadCount = 1
+$maxThreadCount = 100
 if ($addextension -eq "Yes" ) {
-    sleep $sleepnumber
+    #sleep $sleepnumber
 
     echo "{
     'tenantID': '$tenatid' ,
@@ -98,13 +101,72 @@ if ($addextension -eq "Yes" ) {
     'policyID':'$policyNameorID'
     }" > $dsmFileName
 
+    echo ("{0} Reading from config file." -f $(Get-Date ).ToString())
     $jsonPrivate = Get-Content -Raw -Path $tenantFileName
     $jsonPublic = Get-Content -Raw -Path $dsmFileName
 
+    # multithread with runspace
+    echo ("{0} Creating runspace." -f $(Get-Date ).ToString())
+    $SessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $RunspacePool = [runspacefactory]::CreateRunspacePool($minThreadCount, $maxThreadCount)
+    $RunspacePool.Open()
+    $jobs = New-Object System.Collections.ArrayList
+    $scriptBlock = {
+        Param (
+            $resourceGroupName,
+            $location,
+            $vmName,
+            $name,
+            $publisher,
+            $extensionType,
+            $typeHandlerVersion,
+            $settingString,
+            $protectedSettingString
+        )
+            
+        $ThreadID = [appdomain]::GetCurrentThreadId()
+        echo ("{0} Thread:{1} Add extension for VM:{2}; ResourceGroup:{3}; Extension:{4}; Version:{5}" -f $(Get-Date ).ToString(), $ThreadID, $vmName, $resourceGroupName, $name, $typeHandlerVersion)
+        Set-AzureRMVMExtension -ResourceGroupName $resourceGroupName -Location $location -VMName $vmName -Name $name -Publisher $publisher -ExtensionType $extensionType -TypeHandlerVersion $typeHandlerVersion -SettingString $settingString -ProtectedSettingString $protectedSettingString
+    }
+
+    echo ("{0} Adding VM Extension." -f $(Get-Date ).ToString())
+
     for($i = 0; $i -lt $vmnumber ; $i++){
         $machine7 = $vmnamestart + $i 
-        echo ("{0} Add extension for VM:{1}; ResourceGroup:{2}; Extension:{3}; Version:{4}" -f $(Get-Date ).ToString(), $machine7, $vmnamestart, $TMextensionname, $dsaExtVersion)
-        Set-AzureRMVMExtension -ResourceGroupName $vmnamestart -Location $rglocation -VMName $machine7 -Name $TMextensionname -Publisher $TMPublisher -ExtensionType $TMextensionname -TypeHandlerVersion $dsaExtVersion -SettingString $jsonPublic -ProtectedSettingString $jsonPrivate
+        $Parameters = @{
+                        resourceGroupName=$vmnamestart
+                        location=$rglocation
+                        vmName=$machine7
+                        name=$TMextensionname
+                        publisher=$TMPublisher
+                        extensionType=$TMextensionname
+                        typeHandlerVersion=$dsaExtVersion
+                        settingString=$jsonPublic
+                        protectedSettingString=$jsonPrivate
+                        }
+        
+        $PowerShell = [powershell]::Create() 
+        $PowerShell.RunspacePool = $RunspacePool
+        
+        echo ("{0} Invoking job for VM:{1}" -f $(Get-Date ).ToString(), $machine7)
+
+        [void]$PowerShell.AddScript($scriptBlock)
+        [void]$PowerShell.AddParameters($Parameters)
+        $Handle = $PowerShell.BeginInvoke()
+
+        $temp = "" | Select PowerShell,Handle
+        $temp.PowerShell = $PowerShell
+        $temp.handle = $Handle
+        [void]$jobs.Add($temp)
+        sleep 5
+
     }
+    
+    $jobs | ForEach {
+        $_.powershell.EndInvoke($_.handle)
+        $_.PowerShell.Dispose()
+    }
+
+    $jobs.clear()
 }
 #endregion

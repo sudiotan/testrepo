@@ -2,32 +2,32 @@
 $DebugPreference = "Continue"
 ###################################### Azure Login  ######################################
 
-$rglocation = "East US"
-$clientacc = “twdsauto@dsauto.onmicrosoft.com"
-$securePassword = ConvertTo-SecureString -AsPlainText -Force ‘2010@Azure!@#'
-$accsubscription = "dabc1645-8ed8-4f30-a200-0c1c55b33657"
-$sleepnumber = "60"
-#$vmStorageAccountName = "mmikets155"
+$location = "East US"
+$AzureAccount = "twdsauto@dsauto.onmicrosoft.com"
+$AzurePassword = '2010@Azure!@#'
+$securePassword = ConvertTo-SecureString -AsPlainText -Force $AzurePassword
+$AzureSubscriptionID = "dabc1645-8ed8-4f30-a200-0c1c55b33657"
 
 echo ("{0} Login into Azure" -f $(Get-Date ).ToString())
-$cred = New-Object System.Management.Automation.PSCredential $clientacc, $securePassword
-login-azurermaccount -Credential $cred
-Select-AzureRmSubscription -SubscriptionId $accsubscription
+$credential = New-Object System.Management.Automation.PSCredential $AzureAccount, $securePassword
+Login-AzureRmAccount -Credential $credential
+Select-AzureRmSubscription -SubscriptionId $AzureSubscriptionID
 
 ###################################### Create Node  ######################################
 
 # Assign common values
-$vmnumber = 200
-$addnode = "Yes"
-$addextension = "Yes"
-$addplatform = "windows"
+$numberOfVM = 10
+$createVM = "Yes"
+$addExtension = "Yes"
+$VMPlatform = "windows"
 
 # vm information
-$vmsize = "Basic_A0"
-$vmnamestart = "sudioarmdsa"
-$deployName = 'sudiodp' + ([guid]::NewGuid().ToString()).substring(0,4)
+$resourceNamePrefix ="sudiodsa"
+$resourceGroupName = $resourceNamePrefix + "rscgrp"
+$VMNamePrefix = $resourceNamePrefix + "arm"
+$deployName = $resourceNamePrefix + "deploy" + ([guid]::NewGuid().ToString()).substring(0,4)
 $templateURI = 'https://raw.githubusercontent.com/sudiotan/testrepo/master/azuredeploy_multi_VM_sudio.json'  # VM template in JSON
-$params = @{vmName=$vmnamestart;numberOfInstances=$vmnumber}
+$params = @{vmName=$VMNamePrefix;numberOfInstances=$numberOfVM}
 
 # tenant information
 $tenatid = "4DF6D6D1-3467-AA26-0DD8-1BAC774D4930"
@@ -38,26 +38,27 @@ $policyNameorID = ""
 $tenantFileName = "private.config"
 $dsmFileName = "public.config"
 
+
+#region List All Available DeepSecurity Extension
+
 # DSA extension information
-##-Publisher LocalTest.TrendMicro.DeepSecurity  local build
-##-Publisher Test.TrendMicro.DeepSecurity     test publisher (staging)
-##-Publisher TrendMicro.DeepSecurity           official publisher
-######記得要改 dsaExtVersion#####
+# -Publisher LocalTest.TrendMicro.DeepSecurity  local build
+# -Publisher Test.TrendMicro.DeepSecurity     test publisher (staging)
+# -Publisher TrendMicro.DeepSecurity           official publisher
 $TMPublisher = "TrendMicro.DeepSecurity"
 $TMwinextensionname = "TrendMicroDSA"
 $TMlinuxextensionname = "TrendMicroDSALinux"
 
-if ($addplatform -eq "windows" ) {
+if ($VMPlatform -eq "windows" ) {
 $TMextensionname = $TMwinextensionname
 }else {
 $TMextensionname = $TMlinuxextensionname
 }
 
-
-echo ("{0} List all available extenstions :" -f $(Get-Date ).ToString())
+echo ("{0} List all available extensions" -f $(Get-Date ).ToString())
 $dsaExtVersion = "9.6"  # default extension version
 # list all available extensions, 
-$dsaExtVersionImages = Get-AzureRmVMExtensionImage -Location $rglocation –PublisherName $TMPublisher -Type $TMextensionname
+$dsaExtVersionImages = Get-AzureRmVMExtensionImage -Location $location –PublisherName $TMPublisher -Type $TMextensionname
 echo($dsaExtVersionImages)
 $ver = $dsaExtVersion
 
@@ -69,27 +70,25 @@ if($dsaExtVersionImages -is [Object[]]) {
 if( $ver -match "(\d+\.\d+)\.*") {  # get first two version-number (eg : get A.B from A.B.C.D)
     $dsaExtVersion = $Matches[1]
 }
- 
+#endregion 
 
+#region Create VM Using Deployment Template
+if ($createVM -eq "Yes" ) {
+	echo ("{0} Creating resource group : {1}" -f $(Get-Date ).ToString(), $resourceGroupName)
+	New-AzureRmResourceGroup -Name $resourceGroupName -Location $location
 
-if ($addnode -eq "Yes" ) {
-###############################################Create VM START ####################################################
-echo ("{0} Creating resource group : {1}" -f $(Get-Date ).ToString(), $vmnamestart)
-New-AzureRmResourceGroup -Name $vmnamestart -Location $rglocation
+	echo ("{0} Deploying Resources using template:{1}; ResourceGroup:{2}; deployName:{3}" -f $(Get-Date ).ToString(), $templateURI, $resourceGroupName, $deployName)
+	New-AzureRmResourceGroupDeployment -Name $deployName -ResourceGroupName $resourceGroupName -TemplateUri $templateURI -TemplateParameterObject $params
+	echo ("{0} Finished deploying template:{1}" -f $(Get-Date ).ToString(), $templateURI)
 
-echo ("{0} Deploying Resources using template:{1}; ResourceGroup:{2}; deployName:{3}" -f $(Get-Date ).ToString(), $templateURI,$vmnamestart,$deployName)
-New-AzureRmResourceGroupDeployment -Name $deployName -ResourceGroupName $vmnamestart -TemplateUri $templateURI -TemplateParameterObject $params
-echo ("{0} Finished deploying template:{1}" -f $(Get-Date ).ToString(), $templateURI)
-##############################################Create VM END #######################################################
 }
+#endregion
 
-############################################### Create VM Extension ####################################################
 
-#region Add Extension
+#region Add VM Extension
 $minThreadCount = 1
 $maxThreadCount = 100
-if ($addextension -eq "Yes" ) {
-    #sleep $sleepnumber
+if ($addExtension -eq "Yes" ) {
 
     echo "{
     'tenantID': '$tenatid' ,
@@ -125,18 +124,19 @@ if ($addextension -eq "Yes" ) {
         )
             
         $ThreadID = [appdomain]::GetCurrentThreadId()
-        echo ("{0} Thread:{1} Add extension for VM:{2}; ResourceGroup:{3}; Extension:{4}; Version:{5}" -f $(Get-Date ).ToString(), $ThreadID, $vmName, $resourceGroupName, $name, $typeHandlerVersion)
+        
         Set-AzureRMVMExtension -ResourceGroupName $resourceGroupName -Location $location -VMName $vmName -Name $name -Publisher $publisher -ExtensionType $extensionType -TypeHandlerVersion $typeHandlerVersion -SettingString $settingString -ProtectedSettingString $protectedSettingString
+        echo ("{0} Thread:{1} Finished adding extension for VM:{2}; ResourceGroup:{3}; Extension:{4}; Version:{5}" -f $(Get-Date ).ToString(), $ThreadID, $vmName, $resourceGroupName, $name, $typeHandlerVersion)
     }
 
     echo ("{0} Adding VM Extension." -f $(Get-Date ).ToString())
 
-    for($i = 0; $i -lt $vmnumber ; $i++){
-        $machine7 = $vmnamestart + $i 
+    for($i = 0; $i -lt $numberOfVM ; $i++){
+        $VMName = $VMNamePrefix + $i 
         $Parameters = @{
-                        resourceGroupName=$vmnamestart
-                        location=$rglocation
-                        vmName=$machine7
+                        resourceGroupName=$resourceGroupName
+                        location=$location
+                        vmName=$VMName
                         name=$TMextensionname
                         publisher=$TMPublisher
                         extensionType=$TMextensionname
@@ -148,7 +148,7 @@ if ($addextension -eq "Yes" ) {
         $PowerShell = [powershell]::Create() 
         $PowerShell.RunspacePool = $RunspacePool
         
-        echo ("{0} Invoking job for VM:{1}" -f $(Get-Date ).ToString(), $machine7)
+        echo ("{0} Adding extension for VM:{1}" -f $(Get-Date ).ToString(), $VMName)
 
         [void]$PowerShell.AddScript($scriptBlock)
         [void]$PowerShell.AddParameters($Parameters)
@@ -158,7 +158,7 @@ if ($addextension -eq "Yes" ) {
         $temp.PowerShell = $PowerShell
         $temp.handle = $Handle
         [void]$jobs.Add($temp)
-        sleep 5
+        sleep 4
 
     }
     

@@ -8,7 +8,7 @@
         "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
       }
     },
-	"numberOfInstances": {
+	"numberOfVM": {
       "type": "int",
       "defaultValue": 1,
       "metadata": {
@@ -98,7 +98,7 @@
       "location": "[variables('location')]",
 	  "copy": {
         "name": "nicLoop",
-        "count": "[parameters('numberOfInstances')]"
+        "count": "[parameters('numberOfVM')]"
       },
       "dependsOn": [
         "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
@@ -124,7 +124,7 @@
       "location": "[variables('location')]",
 	  "copy": {
         "name": "vmLoop",
-        "count": "[parameters('numberOfInstances')]"
+        "count": "[parameters('numberOfVM')]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",

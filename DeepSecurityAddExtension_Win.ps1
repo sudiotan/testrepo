@@ -1,13 +1,8 @@
 ﻿ [CmdletBinding()]
  param (
-    #[Parameter(Mandatory=$true)][string]$protectedFileName,
-    #[Parameter(Mandatory=$true)][string]$publicFileName,
-    #[Parameter(Mandatory=$true)][string]$vmListFileName
-    
-    #TODO change to Mandatory
-    [string]$protectedFileName = "private.config",
-    [string]$publicFileName = "public.config",
-    [string]$vmListFileName = "VMList.config"
+    [Parameter(Mandatory=$true)][string]$protectedFileName,
+    [Parameter(Mandatory=$true)][string]$publicFileName,
+    [Parameter(Mandatory=$true)][string]$vmListFileName
  )
 
 if([string]::IsNullOrWhiteSpace($protectedFileName) -or [string]::IsNullOrWhiteSpace($publicFileName) -or [string]::IsNullOrWhiteSpace($vmListFileName)) {
@@ -32,20 +27,6 @@ try {
 } catch {
     throw "Configuration files not a valid JSON format : " + $_
 }
-
-<#
-$location = "East US"
-$AzureAccount = "twdsauto@dsauto.onmicrosoft.com"
-$AzurePassword = '2010@Azure!@#'
-$securePassword = ConvertTo-SecureString -AsPlainText -Force $AzurePassword
-$AzureSubscriptionID = "dabc1645-8ed8-4f30-a200-0c1c55b33657"
-
-echo ("{0} Login into Azure" -f $(Get-Date ).ToString())
-$credential = New-Object System.Management.Automation.PSCredential $AzureAccount, $securePassword
-Login-AzureRmAccount -Credential $credential
-Select-AzureRmSubscription -SubscriptionId $AzureSubscriptionID
-#>
-
 
 #region List all available extensions version by location
 echo ("{0} List all available extensions" -f $(Get-Date ).ToString())

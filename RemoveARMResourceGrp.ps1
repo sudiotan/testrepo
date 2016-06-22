@@ -84,6 +84,27 @@ $rscGrpList | ForEach {
     
 $jobs | ForEach {
     $_.powershell.EndInvoke($_.handle)
+	
+	if ($_.powershell -and $_.powershell.Streams) {
+
+        foreach ($errorRecord in $_.powershell.Streams.Error) {
+            $errorRecord
+        }
+
+        foreach ($warningRecord in $_.powershell.Streams.Warning) {
+            $warningRecord
+        }
+
+        foreach ($verboseRecord in $_.powershell.Streams.Verbose) {
+            $verboseRecord
+        }
+
+        foreach ($debugRecord in $_.powershell.Streams.Debug) {
+            $debugRecord
+        }
+        
+    }
+	
     $_.PowerShell.Dispose()
 }
 

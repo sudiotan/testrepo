@@ -31,7 +31,7 @@ try {
 $securePassword = ConvertTo-SecureString -AsPlainText -Force $configurations.azurePassword
 echo ("{0} Login into Azure" -f $(Get-Date ).ToString())
 $credential = New-Object System.Management.Automation.PSCredential $configurations.azureAccount, $securePassword
-Login-AzureRmAccount -Credential $credential
+Login-AzureRmAccount -Credential $credential -TenantId $configurations.tenantId
 Select-AzureRmSubscription -SubscriptionId $configurations.azureSubscriptionID
 
 #endregion

@@ -70,8 +70,8 @@ $rscGrpList | ForEach {
         
     echo ("{0} Removing ResourceGroup:{1}" -f $(Get-Date ).ToString(), $resourceGroupName)
 
-    $PowerShell.AddScript($scriptBlock)
-    $PowerShell.AddParameters($Parameters)
+    [void]$PowerShell.AddScript($scriptBlock)
+    [void]$PowerShell.AddParameters($Parameters)
     $Handle = $PowerShell.BeginInvoke()
 
     $temp = "" | Select PowerShell,Handle
